@@ -80,6 +80,8 @@ class Gnet(nn.Module):
 G=Gnet()
 D=Dnet()
 
+
+
 torch.save(G.state_dict(), 'G.ckpt')
 torch.save(D.state_dict(), 'D.ckpt')
 
