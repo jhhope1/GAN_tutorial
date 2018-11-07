@@ -12,8 +12,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Hyper-parameters
 latent_size = 100
-hidn1=100
-hidn2=100
+hidn1=500
+hidn2=500
 image_size = 784
 num_epochs = 200
 batch_size = 100
@@ -88,8 +88,10 @@ G=Gnet()
 D=Dnet()
 
 if(os.path.isfile("G.ckpt")):
+    print("Generator load")
     G=torch.load('G.ckpt')
 if(os.path.isfile("D.ckpt")):
+    print("Discriminator load")
     D=torch.load('D.ckpt')
 
 # Device setting
@@ -98,8 +100,8 @@ G = G.to(device)
 
 # Binary cross entropy loss and optimizer
 criterion = nn.BCELoss()
-d_optimizer = torch.optim.Adam(D.parameters(), lr=0.00005)
-g_optimizer = torch.optim.Adam(G.parameters(), lr=0.00005)
+d_optimizer = torch.optim.Adam(D.parameters(), lr=0.000002)
+g_optimizer = torch.optim.Adam(G.parameters(), lr=0.000002)
 
 def denorm(x):
     out = (x + 1) / 2
@@ -116,10 +118,10 @@ for epoch in range(num_epochs):
     for i, (images, targets) in enumerate(data_loader):
         images = images.reshape(batch_size, -1).to(device)
 
-        real_labels = torch.ones(batch_size, 1).to(device)
+        real_labels = (torch.ones(batch_size, 1)).to(device)
         fake_labels = torch.zeros(batch_size, 1).to(device)
 
-        onehot=batch_zeros.scatter_(1, targets.reshape(batch_size,1) ,1).cuda()
+        onehot=batch_zeros.scatter_(1, targets.reshape(batch_size,1) ,1).to(device)
         outputs = D(images)
 
         real_labels=torch.cat([onehot,real_labels],dim=1)
@@ -131,7 +133,7 @@ for epoch in range(num_epochs):
         rdint=np.random.random_integers(0,9,(batch_size))
         id=torch.Tensor(rdint).long()
 
-        id_onehot=batch_zeros.scatter_(1,id.reshape(batch_size,1),1).cuda()
+        id_onehot=batch_zeros.scatter_(1,id.reshape(batch_size,1),1).to(device)
 
         fake_labels=torch.cat([id_onehot,fake_labels],dim=1)
         
@@ -147,7 +149,8 @@ for epoch in range(num_epochs):
         d_loss.backward()
         d_optimizer.step()
         
-        z = torch.randn(batch_size, latent_size+10).to(device)
+        z = torch.randn(batch_size, latent_size).to(device)
+        z=torch.cat([id_onehot,z],dim=1)
         fake_images = G(z)
         outputs = D(fake_images)
 
@@ -164,8 +167,14 @@ for epoch in range(num_epochs):
             if(torch.isnan(d_loss).item()==0 and torch.isnan(g_loss).item()==0):
                 torch.save(G, 'G.ckpt')
                 torch.save(D, 'D.ckpt')
-            for i, (images, targets) in enumerate(data_loader):
-                criterion(D(images.reshape(batch_size,-1)),target)
+            for _, (images_, targets_) in enumerate(test_loader):
+                test_zeros=torch.zeros((len(test_mnist),10))
+                result = D(images_.reshape(len(test_mnist),-1).to(device))
+                indices = torch.tensor([0,1,2,3,4,5,6,7,8,9]).to(device)
+                result = torch.index_select(result, 1, indices)
+                error = criterion(result,test_zeros.scatter_(1, targets_.reshape(-1,1) ,1).to(device))
+                ans = torch.sum(torch.eq(torch.argmax(result,dim=1),targets_.reshape(-1).to(device)))
+                print("classification accuracy = ",ans.item()," error = ",error.item())
     if (epoch+1) == 1:
         images = images.reshape(images.size(0), 1, 28, 28)
         save_image(denorm(images), os.path.join(sample_dir, 'real_images.png'))
