@@ -34,10 +34,17 @@ mnist = torchvision.datasets.MNIST(root='../../data/',
                                    train=True,
                                    transform=transform,
                                    download=True)
-
+test_mnist = torchvision.datasets.MNIST(root='../../data/',
+                                   train=False,
+                                   transform=transform,
+                                   download=True)
 # Data loader
 data_loader = torch.utils.data.DataLoader(dataset=mnist,
                                           batch_size=batch_size, 
+                                          shuffle=True)
+
+test_loader = torch.utils.data.DataLoader(dataset=test_mnist,
+                                          batch_size=len(test_mnist), 
                                           shuffle=True)
 
 # Discriminator
@@ -80,10 +87,10 @@ class Gnet(nn.Module):
 G=Gnet()
 D=Dnet()
 
-
-
-torch.save(G.state_dict(), 'G.ckpt')
-torch.save(D.state_dict(), 'D.ckpt')
+if(os.path.isfile("G.ckpt")):
+    G=torch.load('G.ckpt')
+if(os.path.isfile("D.ckpt")):
+    D=torch.load('D.ckpt')
 
 # Device setting
 D = D.to(device)
@@ -154,7 +161,11 @@ for epoch in range(num_epochs):
             print('Epoch [{}/{}], Step [{}/{}], d_loss: {:.4f}, g_loss: {:.4f}, D(x): {:.2f}, D(G(z)): {:.2f}' 
                   .format(epoch, num_epochs, i+1, total_step, d_loss.item(), g_loss.item(), 
                           real_score.mean().item(), fake_score.mean().item()))
-    
+            if(torch.isnan(d_loss).item()==0 and torch.isnan(g_loss).item()==0):
+                torch.save(G, 'G.ckpt')
+                torch.save(D, 'D.ckpt')
+            for i, (images, targets) in enumerate(data_loader):
+                criterion(D(images.reshape(batch_size,-1)),target)
     if (epoch+1) == 1:
         images = images.reshape(images.size(0), 1, 28, 28)
         save_image(denorm(images), os.path.join(sample_dir, 'real_images.png'))
@@ -162,5 +173,5 @@ for epoch in range(num_epochs):
     fake_images = fake_images.reshape(fake_images.size(0), 1, 28, 28)
     save_image(denorm(fake_images), os.path.join(sample_dir, 'fake_images-{}.png'.format(epoch+1)))
 
-torch.save(G.state_dict(), 'G.ckpt')
-torch.save(D.state_dict(), 'D.ckpt')
+torch.save(G, 'G.ckpt')
+torch.save(D, 'D.ckpt')
