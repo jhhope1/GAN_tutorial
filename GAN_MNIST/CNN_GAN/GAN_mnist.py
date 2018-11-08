@@ -112,22 +112,12 @@ class GeneratorNet(nn.Module):
         self.full1=nn.Linear(20,30)
         self.full2=nn.Linear(30,40)
         self.full3=nn.Linear(40,image_size)
-        #torch.nn.init.normal_(self.full1.weight, mean=0,std=1)
-        #torch.nn.init.normal_(self.full2.weight, mean=0,std=1)
-        #torch.nn.init.normal_(self.full3.weight, mean=0,std=1)
-        #torch.nn.init.normal_(self.conv1.weight, mean=0,std=1)
-        #torch.nn.init.normal_(self.conv2.weight, mean=0,std=1)
-        #torch.nn.init.normal_(self.conv3.weight, mean=0,std=1)
-
 
     def forward(self,input):
         input=F.relu(self.full1(input))
         input=F.relu(self.full2(input))
         input=F.relu(self.full3(input))
-        input=input.reshape((-1,1,50,50))
-        input=F.relu(self.conv1(input))
-        input=F.relu(self.conv2(input))
-        input=torch.tanh(self.conv3(input))
+        input=torch.tanh(input)
         return input
 
 def pred():
