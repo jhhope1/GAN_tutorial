@@ -3,6 +3,7 @@ import torch
 import torchvision
 import numpy as np
 import torch.nn as nn
+import torch.nn.functional as F
 from torchvision import transforms
 from torchvision.utils import save_image
 
@@ -44,46 +45,64 @@ data_loader = torch.utils.data.DataLoader(dataset=mnist,
                                           shuffle=True)
 
 test_loader = torch.utils.data.DataLoader(dataset=test_mnist,
-                                          batch_size=len(test_mnist), 
+                                          batch_size=100, 
                                           shuffle=True)
 
-# Discriminator
-class Dnet(nn.Module):
+class Dnet(nn.Module):#first 10 number judge the lables, last one judge that data has generated
     def __init__(self):
         super(Dnet,self).__init__()
-        self.hid1=nn.Sequential(
-            nn.Linear(784,hidn1),
-            nn.LeakyReLU(0.2),
-            nn.Linear(hidn1,hidn2),
-            nn.LeakyReLU(0.2),
-            nn.Linear(hidn2,10),
-            nn.Softmax()
-            )
-        self.hid2=nn.Sequential(
-            nn.Linear(784,hidn1),
-            nn.LeakyReLU(0.2),
-            nn.Linear(hidn1,hidn2),
-            nn.LeakyReLU(0.2),
-            nn.Linear(hidn2,1),
-            nn.Sigmoid()
-            )
+        self.con1=nn.Conv2d(1,48,8,2)
+        self.con2=nn.Conv2d(48,50,5,1)
+        self.con3=nn.Conv2d(50,50,3,2)
+        self.con4=nn.Conv2d(50,100,3,2)
+        self.full1=nn.Linear(100,115)
+        self.full2=nn.Linear(115,10)
+
+        self.con1_=nn.Conv2d(1,48,8,2)
+        self.con2_=nn.Conv2d(48,50,5,1)
+        self.con3_=nn.Conv2d(50,50,3,2)
+        self.con4_=nn.Conv2d(50,100,3,2)
+        self.full1_=nn.Linear(100,115)
+        self.full3_=nn.Linear(115,1)
     def forward(self,input):
-        out=torch.cat([self.hid1(input),self.hid2(input)],dim=1)
-        return out
+        input=input.reshape(-1,1,28,28)
+        input1=F.relu(self.con1(input))
+        input1=F.relu(self.con2(input1))
+        input1=F.relu(self.con3(input1))
+        input1=F.relu(self.con4(input1))
+        input1=input1.view(-1,100)
+        input1=F.relu(self.full1(input1))
+        input1=self.full2(input1)
+        input1=F.softmax(input1,dim=1)
+
+        
+        input2=F.relu(self.con1_(input))
+        input2=F.relu(self.con2_(input2))
+        input2=F.relu(self.con3_(input2))
+        input2=F.relu(self.con4_(input2))
+        input2=input2.view(-1,100)
+        input2=F.relu(self.full1_(input2))
+        input2=torch.sigmoid(self.full3_(input2))
+
+        input=torch.cat((input1, input2),dim=1)
+        return input
 
 class Gnet(nn.Module):
+
     def __init__(self):
         super(Gnet,self).__init__()
-        self.hid1=nn.Sequential(
-            nn.Linear(latent_size+10 ,hidn1),
-            nn.LeakyReLU(0.2),
-            nn.Linear(hidn1,hidn2),
-            nn.LeakyReLU(0.2),
-            nn.Linear(hidn2,784),
-            nn.Tanh()
-            )
+        self.full1=nn.Linear(latent_size+10,200)
+        self.full2=nn.Linear(200,300)
+        self.full3=nn.Linear(300,image_size)
     def forward(self,input):
-         return self.hid1(input)
+        out=input.reshape(-1,latent_size+10)
+        out=F.relu(self.full1(out))
+        out=F.relu(self.full2(out))
+        out=self.full3(out)
+        #input=input.reshape((-1,1,28,28))
+        out=torch.tanh(out)
+        return out
+
 
 G=Gnet()
 D=Dnet()
@@ -110,7 +129,7 @@ def denorm(x):
 
 def reset_grad():
     d_optimizer.zero_grad()
-    #g_optimizer.zero_grad()
+    g_optimizer.zero_grad()
 
 # Start training
 total_step = len(data_loader)
@@ -149,9 +168,8 @@ for epoch in range(num_epochs):
         d_loss = d_loss_real + d_loss_fake
         reset_grad()
 
-        if(fake_score.mean().item()>0.5):
-            d_loss.backward()
-            d_optimizer.step()
+        d_loss.backward()
+        d_optimizer.step()
         
         z = torch.randn(batch_size, latent_size).to(device)
         z=torch.cat([id_onehot,z],dim=1)
@@ -172,14 +190,16 @@ for epoch in range(num_epochs):
             if(torch.isnan(d_loss).item()==0 and torch.isnan(g_loss).item()==0):
                 torch.save(G, 'G.ckpt')
                 torch.save(D, 'D.ckpt')
+            ans=0
+            error=0
             for _, (images_, targets_) in enumerate(test_loader):
-                test_zeros=torch.zeros((len(test_mnist),10))
-                result = D(images_.reshape(len(test_mnist),-1).to(device))
+                test_zeros=torch.zeros((100,10))
+                result = D(images_.reshape(100,-1).to(device))
                 indices = torch.tensor([0,1,2,3,4,5,6,7,8,9]).to(device)
                 result = torch.index_select(result, 1, indices)
-                error = criterion(result,test_zeros.scatter_(1, targets_.reshape(-1,1) ,1).to(device))
-                ans = torch.sum(torch.eq(torch.argmax(result,dim=1),targets_.reshape(-1).to(device)))
-                print("classification accuracy = ",ans.item()/len(test_mnist)," error = ",error.item())
+                error += criterion(result,test_zeros.scatter_(1, targets_.reshape(-1,1) ,1).to(device))
+                ans += torch.sum(torch.eq(torch.argmax(result,dim=1),targets_.reshape(-1).to(device)))
+            print("classification accuracy = ",ans.item()/100," error = ",error.item())
     if (epoch+1) == 1:
         images = images.reshape(images.size(0), 1, 28, 28)
         save_image(denorm(images), os.path.join(sample_dir, 'real_images.png'))
