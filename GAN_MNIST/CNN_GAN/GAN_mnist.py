@@ -112,7 +112,7 @@ class CriticNet(nn.Module):#first 10 number judge the lables, last one judge tha
         input2=F.relu(self.con4_(input2))
         input2=input2.view(-1,100)
         input2=F.relu(self.full1_(input2))
-        input2=torch.tanh(self.full3_(input2))
+        input2=torch.sigmoid(self.full3_(input2))
 
         input=torch.cat((input1, input2),dim=1)
         return input
@@ -143,7 +143,7 @@ class GeneratorNet(nn.Module):
         input=input.reshape((-1,1,50,50))
         input=F.relu(self.conv1(input))
         input=F.relu(self.conv2(input))
-        input=F.relu(self.conv3(input))
+        input=torch.tanh(self.conv3(input))
         return input
 
 def pred():
