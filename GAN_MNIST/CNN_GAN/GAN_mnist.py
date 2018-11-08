@@ -51,58 +51,42 @@ test_loader = torch.utils.data.DataLoader(dataset=test_mnist,
 class Dnet(nn.Module):#first 10 number judge the lables, last one judge that data has generated
     def __init__(self):
         super(Dnet,self).__init__()
-        self.con1=nn.Conv2d(1,48,8,2)
-        self.con2=nn.Conv2d(48,50,5,1)
-        self.con3=nn.Conv2d(50,50,3,2)
-        self.con4=nn.Conv2d(50,100,3,2)
-        self.full1=nn.Linear(100,115)
-        self.full2=nn.Linear(115,10)
+        self.full0=nn.Linear(image_size, 500)
+        self.full1=nn.Linear(500,1000)
+        self.full2=nn.Linear(1000,10)
 
-        self.con1_=nn.Conv2d(1,48,8,2)
-        self.con2_=nn.Conv2d(48,50,5,1)
-        self.con3_=nn.Conv2d(50,50,3,2)
-        self.con4_=nn.Conv2d(50,100,3,2)
-        self.full1_=nn.Linear(100,115)
-        self.full3_=nn.Linear(115,1)
+        self.full0_=nn.Linear(image_size, 500)
+        self.full1_=nn.Linear(500,1000)
+        self.full3_=nn.Linear(1000,1)
+
+        self.R=nn.LeakyReLU(0.2)
     def forward(self,input):
-        input=input.reshape(-1,1,28,28)
-        input1=F.relu(self.con1(input))
-        input1=F.relu(self.con2(input1))
-        input1=F.relu(self.con3(input1))
-        input1=F.relu(self.con4(input1))
-        input1=input1.view(-1,100)
-        input1=F.relu(self.full1(input1))
+        input1=self.R(self.full0(input))
+        input1=self.R(self.full1(input1))
         input1=self.full2(input1)
-        input1=F.softmax(input1,dim=1)
+        input1=torch.softmax(input1,dim=1)
 
-        
-        input2=F.relu(self.con1_(input))
-        input2=F.relu(self.con2_(input2))
-        input2=F.relu(self.con3_(input2))
-        input2=F.relu(self.con4_(input2))
-        input2=input2.view(-1,100)
-        input2=F.relu(self.full1_(input2))
+        input2=self.R(self.full0_(input))
+        input2=self.R(self.full1_(input2))
         input2=torch.sigmoid(self.full3_(input2))
 
         input=torch.cat((input1, input2),dim=1)
         return input
 
 class Gnet(nn.Module):
-
     def __init__(self):
         super(Gnet,self).__init__()
-        self.full1=nn.Linear(latent_size+10,200)
-        self.full2=nn.Linear(200,300)
-        self.full3=nn.Linear(300,image_size)
+        self.full1=nn.Linear(latent_size+10,500)
+        self.full2=nn.Linear(500,700)
+        self.full3=nn.Linear(700,image_size)
+        
+        self.R=nn.LeakyReLU(0.2)
     def forward(self,input):
-        out=input.reshape(-1,latent_size+10)
-        out=F.relu(self.full1(out))
-        out=F.relu(self.full2(out))
-        out=self.full3(out)
-        #input=input.reshape((-1,1,28,28))
-        out=torch.tanh(out)
-        return out
-
+        input=self.R(self.full1(input))
+        input=self.R(self.full2(input))
+        input=(self.full3(input))
+        input=torch.tanh(input)
+        return input
 
 G=Gnet()
 D=Dnet()
