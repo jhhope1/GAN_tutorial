@@ -3,7 +3,6 @@ import torch
 import torchvision
 import numpy as np
 import torch.nn as nn
-import torch.nn.functional as F
 from torchvision import transforms
 from torchvision.utils import save_image
 
@@ -45,12 +44,14 @@ data_loader = torch.utils.data.DataLoader(dataset=mnist,
                                           shuffle=True)
 
 test_loader = torch.utils.data.DataLoader(dataset=test_mnist,
-                                          batch_size=100, 
+                                          batch_size=len(test_mnist), 
                                           shuffle=True)
 
-class Dnet(nn.Module):#first 10 number judge the lables, last one judge that data has generated
+# Discriminator
+class Dnet(nn.Module):
     def __init__(self):
         super(Dnet,self).__init__()
+<<<<<<< HEAD
         self.full0=nn.Linear(image_size+10, 400)
         self.bc0=nn.BatchNorm1d(400)
         self.full1=nn.Linear(400,600)
@@ -64,10 +65,32 @@ class Dnet(nn.Module):#first 10 number judge the lables, last one judge that dat
         input1=self.full2(input1)
         input1=torch.sigmoid(input1)
         return input1
+=======
+        self.hid1=nn.Sequential(
+            nn.Linear(784,hidn1),
+            nn.LeakyReLU(0.2),
+            nn.Linear(hidn1,hidn2),
+            nn.LeakyReLU(0.2),
+            nn.Linear(hidn2,10),
+            nn.Softmax()
+            )
+        self.hid2=nn.Sequential(
+            nn.Linear(784,hidn1),
+            nn.LeakyReLU(0.2),
+            nn.Linear(hidn1,hidn2),
+            nn.LeakyReLU(0.2),
+            nn.Linear(hidn2,1),
+            nn.Sigmoid()
+            )
+    def forward(self,input):
+        out=torch.cat([self.hid1(input),self.hid2(input)],dim=1)
+        return out
+>>>>>>> parent of 4d04bad... fixed
 
 class Gnet(nn.Module):
     def __init__(self):
         super(Gnet,self).__init__()
+<<<<<<< HEAD
         self.full1=nn.Linear(latent_size+10,1000)
         self.bc0=nn.BatchNorm1d(1000)
         self.full2=nn.Linear(1000,800)
@@ -81,6 +104,18 @@ class Gnet(nn.Module):
         input=(self.full3(input))
         input=torch.tanh(input)
         return input
+=======
+        self.hid1=nn.Sequential(
+            nn.Linear(latent_size+10 ,hidn1),
+            nn.LeakyReLU(0.2),
+            nn.Linear(hidn1,hidn2),
+            nn.LeakyReLU(0.2),
+            nn.Linear(hidn2,784),
+            nn.Tanh()
+            )
+    def forward(self,input):
+         return self.hid1(input)
+>>>>>>> parent of 4d04bad... fixed
 
 G=Gnet()
 D=Dnet()
@@ -107,7 +142,7 @@ def denorm(x):
 
 def reset_grad():
     d_optimizer.zero_grad()
-    g_optimizer.zero_grad()
+    #g_optimizer.zero_grad()
 
 # Start training
 total_step = len(data_loader)
@@ -150,8 +185,9 @@ for epoch in range(num_epochs):
         d_loss = d_loss_real + d_loss_fake
         reset_grad()
 
-        d_loss.backward()
-        d_optimizer.step()
+        if(fake_score.mean().item()>0.5):
+            d_loss.backward()
+            d_optimizer.step()
         
         z = 0.1*torch.randn(batch_size, latent_size).to(device)
         z=torch.cat([id_onehot,z],dim=1)
@@ -175,6 +211,7 @@ for epoch in range(num_epochs):
             if(torch.isnan(d_loss).item()==0 and torch.isnan(g_loss).item()==0):
                 torch.save(G, 'G.ckpt')
                 torch.save(D, 'D.ckpt')
+<<<<<<< HEAD
             ans=0
             error=0
             #for _, (images_, targets_) in enumerate(test_loader):
@@ -185,6 +222,16 @@ for epoch in range(num_epochs):
             #    error += criterion(result,test_zeros.scatter_(1, targets_.reshape(-1,1) ,1).to(device))
             #    ans += torch.sum(torch.eq(torch.argmax(result,dim=1),targets_.reshape(-1).to(device)))
             #print("classification accuracy = ",ans.item()/100," error = ",error.item())
+=======
+            for _, (images_, targets_) in enumerate(test_loader):
+                test_zeros=torch.zeros((len(test_mnist),10))
+                result = D(images_.reshape(len(test_mnist),-1).to(device))
+                indices = torch.tensor([0,1,2,3,4,5,6,7,8,9]).to(device)
+                result = torch.index_select(result, 1, indices)
+                error = criterion(result,test_zeros.scatter_(1, targets_.reshape(-1,1) ,1).to(device))
+                ans = torch.sum(torch.eq(torch.argmax(result,dim=1),targets_.reshape(-1).to(device)))
+                print("classification accuracy = ",ans.item()/len(test_mnist)," error = ",error.item())
+>>>>>>> parent of 4d04bad... fixed
     if (epoch+1) == 1:
         images = images.reshape(images.size(0), 1, 28, 28)
         save_image(denorm(images), os.path.join(sample_dir, 'real_images.png'))
