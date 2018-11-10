@@ -12,7 +12,7 @@ CUDA_VISIBLE_DEVICES=0
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Hyper-parameters
-latent_size = 100
+latent_size = 10
 hidn1=100
 hidn2=100
 image_size = 784
@@ -51,39 +51,33 @@ test_loader = torch.utils.data.DataLoader(dataset=test_mnist,
 class Dnet(nn.Module):#first 10 number judge the lables, last one judge that data has generated
     def __init__(self):
         super(Dnet,self).__init__()
-        self.full0=nn.Linear(image_size, 500)
-        self.full1=nn.Linear(500,1000)
-        self.full2=nn.Linear(1000,10)
-
-        self.full0_=nn.Linear(image_size, 500)
-        self.full1_=nn.Linear(500,1000)
-        self.full3_=nn.Linear(1000,1)
-
+        self.full0=nn.Linear(image_size+10, 400)
+        self.bc0=nn.BatchNorm1d(400)
+        self.full1=nn.Linear(400,600)
+        self.bc1=nn.BatchNorm1d(600)
+        self.full2=nn.Linear(600,1)
+        
         self.R=nn.LeakyReLU(0.2)
     def forward(self,input):
-        input1=self.R(self.full0(input))
-        input1=self.R(self.full1(input1))
+        input1=self.R(self.bc0(self.full0(input)))
+        input1=self.R(self.bc1(self.full1(input1)))
         input1=self.full2(input1)
-        input1=torch.softmax(input1,dim=1)
-
-        input2=self.R(self.full0_(input))
-        input2=self.R(self.full1_(input2))
-        input2=torch.sigmoid(self.full3_(input2))
-
-        input=torch.cat((input1, input2),dim=1)
-        return input
+        input1=torch.sigmoid(input1)
+        return input1
 
 class Gnet(nn.Module):
     def __init__(self):
         super(Gnet,self).__init__()
-        self.full1=nn.Linear(latent_size+10,500)
-        self.full2=nn.Linear(500,700)
-        self.full3=nn.Linear(700,image_size)
+        self.full1=nn.Linear(latent_size+10,1000)
+        self.bc0=nn.BatchNorm1d(1000)
+        self.full2=nn.Linear(1000,800)
+        self.bc1=nn.BatchNorm1d(800)
+        self.full3=nn.Linear(800,image_size)
         
         self.R=nn.LeakyReLU(0.2)
     def forward(self,input):
-        input=self.R(self.full1(input))
-        input=self.R(self.full2(input))
+        input=self.R(self.bc0(self.full1(input)))
+        input=self.R(self.bc1(self.full2(input)))
         input=(self.full3(input))
         input=torch.tanh(input)
         return input
@@ -104,8 +98,8 @@ G = G.to(device)
 
 # Binary cross entropy loss and optimizer
 criterion = nn.BCELoss().cuda()
-d_optimizer = torch.optim.Adam(D.parameters(), lr=0.000002)
-g_optimizer = torch.optim.Adam(G.parameters(), lr=0.002)
+d_optimizer = torch.optim.Adam(D.parameters(), lr=0.00005)
+g_optimizer = torch.optim.Adam(G.parameters(), lr=0.0002)
 
 def denorm(x):
     out = (x + 1) / 2
@@ -127,9 +121,11 @@ for epoch in range(num_epochs):
         fake_labels = torch.zeros(batch_size, 1).to(device)
 
         onehot=batch_zeros.scatter(1, targets.reshape(batch_size,1) ,1).to(device)
-        outputs = D(images)
+        real_input=torch.cat([images,onehot],dim=1)
+        
+        outputs = D(real_input)
 
-        real_labels=torch.cat([onehot,real_labels],dim=1)
+        real_labels=torch.cat([real_labels],dim=1)
         
         d_loss_real = criterion(outputs, real_labels)
         real_score = outputs.index_select(1,torch.Tensor([10]).long().cuda())
@@ -140,14 +136,16 @@ for epoch in range(num_epochs):
 
         id_onehot=batch_zeros.scatter_(1,id.reshape(batch_size,1),1).to(device)
 
-        fake_labels=torch.cat([id_onehot,fake_labels],dim=1)
+        #fake_labels=torch.cat([id_onehot,fake_labels],dim=1)
         
         rd = torch.randn(batch_size, latent_size).to(device)
         rd = torch.cat([id_onehot,rd],dim=1)
         fake_images = G(rd)
-        outputs = D(fake_images)
+
+        fake_input = torch.cat([fake_images,id_onehot],dim=1)
+        outputs = D(fake_input)
         d_loss_fake = criterion(outputs, fake_labels)
-        fake_score = outputs.index_select(1,torch.Tensor([10]).long().cuda())
+        fake_score = outputs#.index_select(1,torch.Tensor([10]).long().cuda())
         
         d_loss = d_loss_real + d_loss_fake
         reset_grad()
@@ -155,12 +153,15 @@ for epoch in range(num_epochs):
         d_loss.backward()
         d_optimizer.step()
         
-        z = torch.randn(batch_size, latent_size).to(device)
+        z = 0.1*torch.randn(batch_size, latent_size).to(device)
         z=torch.cat([id_onehot,z],dim=1)
         fake_images = G(z)
-        outputs = D(fake_images)
+        fake_input = torch.cat([fake_images,id_onehot],dim=1)
+        outputs = D(fake_input)
 
         g_loss = criterion(outputs, real_labels)
+
+        #fake
         
         reset_grad()
 
@@ -176,14 +177,14 @@ for epoch in range(num_epochs):
                 torch.save(D, 'D.ckpt')
             ans=0
             error=0
-            for _, (images_, targets_) in enumerate(test_loader):
-                test_zeros=torch.zeros((100,10))
-                result = D(images_.reshape(100,-1).to(device))
-                indices = torch.tensor([0,1,2,3,4,5,6,7,8,9]).to(device)
-                result = torch.index_select(result, 1, indices)
-                error += criterion(result,test_zeros.scatter_(1, targets_.reshape(-1,1) ,1).to(device))
-                ans += torch.sum(torch.eq(torch.argmax(result,dim=1),targets_.reshape(-1).to(device)))
-            print("classification accuracy = ",ans.item()/100," error = ",error.item())
+            #for _, (images_, targets_) in enumerate(test_loader):
+            #    test_zeros=torch.zeros((100,10))
+            #    result = D(images_.reshape(100,-1).to(device))
+            #    indices = torch.tensor([0,1,2,3,4,5,6,7,8,9]).to(device)
+            #    result = torch.index_select(result, 1, indices)
+            #    error += criterion(result,test_zeros.scatter_(1, targets_.reshape(-1,1) ,1).to(device))
+            #    ans += torch.sum(torch.eq(torch.argmax(result,dim=1),targets_.reshape(-1).to(device)))
+            #print("classification accuracy = ",ans.item()/100," error = ",error.item())
     if (epoch+1) == 1:
         images = images.reshape(images.size(0), 1, 28, 28)
         save_image(denorm(images), os.path.join(sample_dir, 'real_images.png'))
