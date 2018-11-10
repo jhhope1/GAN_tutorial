@@ -50,6 +50,7 @@ test_loader = torch.utils.data.DataLoader(dataset=test_mnist,
 
 class Dnet(nn.Module):#first 10 number judge the lables, last one judge that data has generated
     def __init__(self):
+<<<<<<< HEAD
         super(Dnet,self).__init__()
         self.con1=nn.Conv2d(1,48,8,2)
         self.bc_c1=nn.BatchNorm2d(48)
@@ -84,9 +85,25 @@ class Dnet(nn.Module):#first 10 number judge the lables, last one judge that dat
         input1=self.R(self.bc_c4(self.con4(input1)))
         input1=input1.view(-1,100)
         input1=self.R(self.bc_l(self.full1(input1)))
-        input1=self.full2(input1)
-        input1=F.softmax(input1,dim=1)
+=======
+        super(CriticNet,self).__init__()
+        self.full0=nn.Linear(image_size, 500)
+        self.full1=nn.Linear(500,1000)
+        self.full2=nn.Linear(1000,10)
 
+        self.full0_=nn.Linear(image_size, 500)
+        self.full1_=nn.Linear(500,1000)
+        self.full3_=nn.Linear(1000,1)
+
+        self.R=nn.LeakyReLU(0.2)
+    def forward(self,input):
+        input1=self.R(self.full0(input))
+        input1=self.R(self.full1(input1))
+>>>>>>> master
+        input1=self.full2(input1)
+        input1=torch.softmax(input1,dim=1)
+
+<<<<<<< HEAD
         
         input2=self.R(self.bc_c1_(self.con1_(input)))
         input2=self.R(self.bc_c2_(self.con2_(input2)))
@@ -94,6 +111,10 @@ class Dnet(nn.Module):#first 10 number judge the lables, last one judge that dat
         input2=self.R(self.bc_c4_(self.con4_(input2)))
         input2=input2.view(-1,100)
         input2=self.R(self.bc_l_(self.full1_(input2)))
+=======
+        input2=self.R(self.full0_(input))
+        input2=self.R(self.full1_(input2))
+>>>>>>> master
         input2=torch.sigmoid(self.full3_(input2))
 
         input=torch.cat((input1, input2),dim=1)
@@ -101,6 +122,7 @@ class Dnet(nn.Module):#first 10 number judge the lables, last one judge that dat
 
 class Gnet(nn.Module):
     def __init__(self):
+<<<<<<< HEAD
         super(Gnet,self).__init__()
         self.full1=nn.Linear(latent_size+10,500)
         self.bc_f0=nn.BatchNorm1d(500)
@@ -123,6 +145,17 @@ class Gnet(nn.Module):
         input=self.R(self.bc_c1(self.con1(input)))
         input=self.R(self.bc_c2(self.con2(input)))
         input=self.con3(input)
+=======
+        super(GeneratorNet,self).__init__()
+        self.full1=nn.Linear(20,30)
+        self.full2=nn.Linear(30,40)
+        self.full3=nn.Linear(40,image_size)
+
+    def forward(self,input):
+        input=F.relu(self.full1(input))
+        input=F.relu(self.full2(input))
+        input=F.relu(self.full3(input))
+>>>>>>> master
         input=torch.tanh(input)
         return input
 
