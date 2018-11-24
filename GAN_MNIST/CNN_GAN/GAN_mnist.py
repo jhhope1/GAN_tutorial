@@ -13,8 +13,6 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Hyper-parameters
 latent_size = 100
-hidn1=100
-hidn2=100
 image_size = 784
 num_epochs = 200
 batch_size = 50
@@ -48,7 +46,7 @@ test_loader = torch.utils.data.DataLoader(dataset=test_mnist,
                                           batch_size=100, 
                                           shuffle=True)
 
-class Dnet(nn.Module):#first 10 number judge the lables, last one judge that data has generated
+class Dnet(nn.Module):#first 10 number judge the lables, last one judge that is data generated
     def __init__(self):
         super(Dnet,self).__init__()
         self.con1=nn.Conv2d(1,48,8,2)
@@ -74,7 +72,7 @@ class Dnet(nn.Module):#first 10 number judge the lables, last one judge that dat
         self.full1_=nn.Linear(100,115)
         self.bc_l_=nn.BatchNorm1d(115)
         self.full3_=nn.Linear(115,1)
-
+        BaseException
         self.R = nn.LeakyReLU(0.2)
     def forward(self,input):
         input=input.reshape(-1,1,28,28)
@@ -85,7 +83,7 @@ class Dnet(nn.Module):#first 10 number judge the lables, last one judge that dat
         input1=input1.view(-1,100)
         input1=self.R(self.bc_l(self.full1(input1)))
         input1=self.full2(input1)
-        input1=torch.softmax(input1,dim=1)
+        input1=torch.softmax(input1,dim=1)#softmax
 
         input2=self.R(self.bc_c1_(self.con1_(input)))
         input2=self.R(self.bc_c2_(self.con2_(input2)))
@@ -141,8 +139,8 @@ G = G.to(device)
 
 # Binary cross entropy loss and optimizer
 criterion = nn.BCELoss().cuda()
-d_optimizer = torch.optim.Adam(D.parameters(), lr=0.00002)
-g_optimizer = torch.optim.Adam(G.parameters(), lr=0.00002)
+d_optimizer = torch.optim.Adam(D.parameters(), lr=0.0002)
+g_optimizer = torch.optim.Adam(G.parameters(), lr=0.0002)
 
 def denorm(x):
     out = (x + 1) / 2
@@ -154,8 +152,15 @@ def reset_grad():
 
 # Start training
 total_step = len(data_loader)
+randfake=torch.randn((100,latent_size))
+id_fake=torch.zeros(100,10)
+for i in range(10):
+    for j in range(10):
+        id_fake[i*10+j][i]=1.
+fake_input=torch.cat([id_fake,randfake],dim=1).to(device)
 for epoch in range(num_epochs):
     
+
     for i, (images, targets) in enumerate(data_loader):
         batch_zeros=torch.zeros(batch_size,10)
         images = images.reshape(batch_size, -1).to(device)
@@ -224,6 +229,8 @@ for epoch in range(num_epochs):
     if (epoch+1) == 1:
         images = images.reshape(images.size(0), 1, 28, 28)
         save_image(denorm(images), os.path.join(sample_dir, 'real_images.png'))
+    
+    fake_images=G(fake_input)
     fake_images = fake_images.reshape(fake_images.size(0), 1, 28, 28)
     save_image(denorm(fake_images), os.path.join(sample_dir, 'fake_images-{}.png'.format(epoch+1)))
 
